@@ -1,0 +1,204 @@
+// Peak Process Partners — Onboarding Platform
+// Prisma schema. This is the ORM-level mirror of db/schema.sql — see that
+// file's header comments for the reasoning behind each modeling decision
+// (why there's no onboarding_steps/checklist/users table, why completion %
+// isn't stored, why Aadhaar/PAN/UAN are ciphertext columns, etc).
+//
+// `db/schema.sql` is the authoritative, standalone DDL (runnable with a
+// plain MySQL client, no Prisma required). This file and the migration in
+// prisma/migrations/ are kept in lockstep with it by hand — see the
+// write-up's "Prisma migrations vs schema.sql" section for how the two are
+// meant to stay in sync.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmployeeStatus {
+  in_progress
+  submitted
+}
+
+enum Gender {
+  female
+  male
+  non_binary        @map("non-binary")
+  prefer_not_to_say @map("prefer-not-to-say")
+}
+
+enum ReferenceType {
+  primary
+  secondary
+}
+
+enum CoverageType {
+  self
+  self_spouse @map("self-spouse")
+  self_family @map("self-family")
+}
+
+enum DocumentType {
+  identityProof
+  addressProof
+  resume
+  educationalCertificates
+  offerLetter
+}
+
+enum DocumentStatus {
+  pending
+  uploading
+  uploaded
+  error
+  provided
+}
+
+/// One row per onboarding session — the anchor/identity row, created the
+/// first time a browser hits the app (before any form data exists) and
+/// looked up by an httpOnly session cookie. There is no login in the
+/// current app, so this row *is* the "user" for now.
+model Employee {
+  id                  String         @id @default(uuid()) @db.Char(36)
+  sessionToken        String         @unique @default(uuid()) @map("session_token") @db.Char(36)
+  fullName            String?        @map("full_name") @db.VarChar(255)
+  status              EmployeeStatus @default(in_progress)
+  submissionReference String?        @unique @map("submission_reference") @db.VarChar(32)
+  submittedAt         DateTime?      @map("submitted_at") @db.DateTime(3)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  personalInformation PersonalInformation?
+  references          EmployeeReference[]
+  emergencyContact    EmergencyContact?
+  healthInsurance     HealthInsurance?
+  documents           EmployeeDocument[]
+
+  @@map("employees")
+}
+
+/// 1:1 with Employee — "Personal Information" step.
+model PersonalInformation {
+  employeeId    String    @id @map("employee_id") @db.Char(36)
+  firstName     String?   @map("first_name") @db.VarChar(100)
+  lastName      String?   @map("last_name") @db.VarChar(100)
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
+  gender        Gender?
+  personalEmail String?   @map("personal_email") @db.VarChar(255)
+  phone         String?   @db.VarChar(20)
+  homeAddress   String?   @map("home_address") @db.VarChar(500)
+
+  /// AES-256-GCM ciphertext (see lib/security/encryption.ts) — never read
+  /// or written as plaintext. @db.VarBinary avoids Prisma's default TEXT
+  /// mapping for Bytes, matching the VARBINARY(255) column in schema.sql.
+  aadhaarNumberEnc Bytes? @map("aadhaar_number_enc") @db.VarBinary(255)
+  panNumberEnc     Bytes? @map("pan_number_enc") @db.VarBinary(255)
+  uanNumberEnc     Bytes? @map("uan_number_enc") @db.VarBinary(255)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("personal_information")
+}
+
+/// Exactly two fixed slots per employee ("primary" / "secondary") —
+/// modeled as a typed child row rather than ten flat columns, enforced via
+/// the unique key on (employeeId, referenceType).
+model EmployeeReference {
+  id            String        @id @default(uuid()) @db.Char(36)
+  employeeId    String        @map("employee_id") @db.Char(36)
+  referenceType ReferenceType @map("reference_type")
+  name          String?       @db.VarChar(150)
+  relationship  String?       @db.VarChar(100)
+  company       String?       @db.VarChar(150)
+  email         String?       @db.VarChar(255)
+  phone         String?       @db.VarChar(20)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, referenceType], map: "uq_employee_references_type")
+  @@index([employeeId], map: "idx_employee_references_employee")
+  @@map("employee_references")
+}
+
+/// 1:1 with Employee — "Emergency Contact" step.
+model EmergencyContact {
+  employeeId        String   @id @map("employee_id") @db.Char(36)
+  name              String?  @db.VarChar(150)
+  relationship      String?  @db.VarChar(100)
+  primaryPhone      String?  @map("primary_phone") @db.VarChar(20)
+  secondaryPhone    String?  @map("secondary_phone") @db.VarChar(20)
+  sameAsHomeAddress Boolean  @default(false) @map("same_as_home_address")
+  address           String?  @db.VarChar(500)
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_contacts")
+}
+
+/// 1:1 with Employee — "Health Insurance" step (coverage + nominee only;
+/// dependents are a separate child table below).
+model HealthInsurance {
+  employeeId          String        @id @map("employee_id") @db.Char(36)
+  coverageType        CoverageType? @map("coverage_type")
+  nomineeName         String?       @map("nominee_name") @db.VarChar(150)
+  nomineeRelationship String?       @map("nominee_relationship") @db.VarChar(100)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+
+  employee   Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  dependents HealthInsuranceDependent[]
+
+  @@map("health_insurance")
+}
+
+/// Up to 5 per employee (enforced in the API route, not the DB — see
+/// schema.sql comment: MySQL CHECK constraints can't express cross-row
+/// cardinality rules).
+model HealthInsuranceDependent {
+  id           String   @id @default(uuid()) @db.Char(36)
+  employeeId   String   @map("employee_id") @db.Char(36)
+  name         String   @db.VarChar(150)
+  relationship String   @db.VarChar(100)
+  dateOfBirth  DateTime @map("date_of_birth") @db.Date
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  healthInsurance HealthInsurance @relation(fields: [employeeId], references: [employeeId], onDelete: Cascade)
+
+  @@index([employeeId], map: "idx_health_insurance_dependents_employee")
+  @@map("health_insurance_dependents")
+}
+
+/// One row per document type per employee ("Documents" step). File bytes
+/// are never stored here — storagePath points at an object-storage
+/// key/URL once that's wired up (see write-up).
+model EmployeeDocument {
+  id           String         @id @default(uuid()) @db.Char(36)
+  employeeId   String         @map("employee_id") @db.Char(36)
+  documentType DocumentType   @map("document_type")
+  fileName     String?        @map("file_name") @db.VarChar(255)
+  fileSize     Int?           @map("file_size") @db.UnsignedInt
+  mimeType     String?        @map("mime_type") @db.VarChar(127)
+  storagePath  String?        @map("storage_path") @db.VarChar(1024)
+  status       DocumentStatus @default(pending)
+  errorMessage String?        @map("error_message") @db.VarChar(500)
+  uploadedAt   DateTime?      @map("uploaded_at") @db.DateTime(3)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, documentType], map: "uq_employee_documents_type")
+  @@index([employeeId], map: "idx_employee_documents_employee")
+  @@map("employee_documents")
+}

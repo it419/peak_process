@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* Ink (dark navy) scale — app shell, chrome */
+  --color-ink-950: #0a0d16;
+  --color-ink-900: #10141f;
+  --color-ink-850: #151a27;
+  --color-ink-800: #1a2030;
+  --color-ink-700: #2a3244;
+  --color-ink-600: #3d4759;
+  --color-ink-400: #8891a3;
+  --color-ink-200: #c7cdd9;
+
+  /* Paper (warm cream) scale — working canvas */
+  --color-paper-50: #faf8f3;
+  --color-paper-100: #f1ece2;
+  --color-paper-200: #e4ddcd;
+  --color-paper-300: #d3c9b3;
+  --color-paper-ink-900: #1c1b18;
+  --color-paper-ink-600: #635d4f;
+  --color-paper-ink-400: #8b8471;
+
+  /* Accents */
+  --color-gold-400: #d4ac5f;
+  --color-gold-500: #c79a45;
+  --color-gold-600: #ad8339;
+  --color-ember-500: #cf5f28;
+  --color-ember-600: #c1501e;
+  --color-ember-700: #a03f17;
+  --color-ember-800: #7f3212;
+  --color-ember-tint: #f7e3d6;
+
+  /* Status */
+  --color-success: #3f7a5b;
+  --color-success-tint: #e3ece6;
+  --color-error: #b3413a;
+  --color-error-tint: #f3e3e1;
+
+  --font-sans: var(--font-ibm-plex-sans), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-lora), Georgia, serif;
+
+  --spacing-rail-left: 17.5rem;
+  --spacing-rail-right: 20rem;
+  --spacing-content-max: 42.5rem;
+
+  --breakpoint-xl: 80rem;
+  --breakpoint-tablet: 56.25rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper-50);
+  color: var(--color-paper-ink-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-ember-tint);
+  color: var(--color-ember-800);
+}
+
+/* Shared eyebrow label style: small, uppercase, tracked-out caps used for
+   section labels, nav items, and metadata across both dark and light surfaces. */
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--color-ember-600);
+  outline-offset: 2px;
 }
