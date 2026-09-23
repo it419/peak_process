@@ -1,5 +1,5 @@
-import { OnboardingShell } from "@/components/layout/OnboardingShell";
+import { OnboardingShellSwitcher } from "@/components/design/OnboardingShellSwitcher";
 
 export default function OnboardingLayout({ children }: LayoutProps<"/onboarding">) {
-  return <OnboardingShell>{children}</OnboardingShell>;
+  return <OnboardingShellSwitcher>{children}</OnboardingShellSwitcher>;
 }

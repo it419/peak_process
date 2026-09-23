@@ -1,8 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useOnboardingForm } from "@/hooks/useOnboardingForm";
-import { welcomeDefaults, welcomeSchema } from "@/lib/schemas/welcome.schema";
+import { useWelcomeStepLogic } from "@/hooks/steps/useWelcomeStepLogic";
 import { TextField } from "@/components/ui/TextField";
 import { StepShell } from "@/components/onboarding/StepShell";
 
@@ -14,26 +12,7 @@ const READY_LIST = [
 ];
 
 export function WelcomeStep() {
-  const router = useRouter();
-  const { form, saveNow } = useOnboardingForm({
-    step: "welcome",
-    schema: welcomeSchema,
-    defaultValues: welcomeDefaults,
-  });
-  const {
-    register,
-    watch,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = form;
-
-  const typedName = watch("fullName");
-  const firstName = typedName?.trim().split(/\s+/)[0];
-
-  const onContinue = handleSubmit(async (data) => {
-    await saveNow(data);
-    router.push("/onboarding/personal-information");
-  });
+  const { register, errors, isSubmitting, firstName, onContinue } = useWelcomeStepLogic();
 
   return (
     <StepShell

@@ -1,9 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useOnboardingForm } from "@/hooks/useOnboardingForm";
-import { emergencyContactDefaults, emergencyContactSchema } from "@/lib/schemas/emergencyContact.schema";
-import { useOnboardingStore } from "@/lib/store/onboardingStore";
+import { useEmergencyContactStepLogic } from "@/hooks/steps/useEmergencyContactStepLogic";
 import { TextField } from "@/components/ui/TextField";
 import { TextareaField } from "@/components/ui/TextareaField";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -11,26 +8,8 @@ import { StepShell } from "@/components/onboarding/StepShell";
 import { FormSection } from "@/components/onboarding/FormSection";
 
 export function EmergencyContactStep() {
-  const router = useRouter();
-  const homeAddress = useOnboardingStore((s) => s.personalInfo.address?.homeAddress);
-  const { form, saveNow } = useOnboardingForm({
-    step: "emergencyContact",
-    schema: emergencyContactSchema,
-    defaultValues: emergencyContactDefaults,
-  });
-  const {
-    register,
-    watch,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = form;
-
-  const sameAsHomeAddress = watch("sameAsHomeAddress");
-
-  const onContinue = handleSubmit(async (data) => {
-    await saveNow(data);
-    router.push("/onboarding/health-insurance");
-  });
+  const { register, errors, isSubmitting, onContinue, sameAsHomeAddress, homeAddress } =
+    useEmergencyContactStepLogic();
 
   return (
     <StepShell

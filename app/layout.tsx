@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { ibmPlexSans, lora } from "./fonts";
+import { fraunces, ibmPlexSans, lora, spaceGrotesk, workSans } from "./fonts";
 import { OnboardingHydrator } from "@/lib/store/OnboardingHydrator";
+import { DesignSwitcher } from "@/components/design/DesignSwitcher";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,9 +12,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${lora.variable} ${ibmPlexSans.variable}`}>
+    <html
+      lang="en"
+      className={`${lora.variable} ${ibmPlexSans.variable} ${spaceGrotesk.variable} ${fraunces.variable} ${workSans.variable}`}
+    >
       <body className="min-h-screen antialiased">
         <OnboardingHydrator />
+        <DesignSwitcher />
         {children}
       </body>
     </html>
