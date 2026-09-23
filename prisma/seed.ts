@@ -6,8 +6,29 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { encryptField } from "../lib/security/encryption";
+import { hashPassword } from "../lib/security/password";
 
 const prisma = new PrismaClient();
+
+/** Provisions the one HR/Admin account from env vars — skipped gracefully if
+ *  unset (there's no signup page; this is the only way an admin gets created). */
+async function seedAdminUser() {
+  const email = process.env.ADMIN_SEED_EMAIL?.trim().toLowerCase();
+  const password = process.env.ADMIN_SEED_PASSWORD;
+
+  if (!email || !password) {
+    console.log("ADMIN_SEED_EMAIL/ADMIN_SEED_PASSWORD not set — skipping admin account seed.");
+    return;
+  }
+
+  const passwordHash = await hashPassword(password);
+  await prisma.adminUser.upsert({
+    where: { email },
+    update: { passwordHash },
+    create: { email, passwordHash, fullName: "HR Admin" },
+  });
+  console.log(`Seeded admin account: ${email}`);
+}
 
 const DEMO_IDS = {
   priya: "11111111-1111-1111-1111-111111111111",
@@ -165,6 +186,8 @@ async function main() {
   });
 
   console.log("Seeded 3 demo employees (Priya Sharma's Aadhaar/PAN are encrypted, matching production behavior).");
+
+  await seedAdminUser();
 }
 
 main()

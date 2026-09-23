@@ -237,3 +237,213 @@ CREATE TABLE employee_documents (
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
 
 CREATE INDEX idx_employee_documents_employee ON employee_documents (employee_id);
+
+-- ============================================================================
+-- Recruitment (jobs + applications) — additive, independent of the tables
+-- above. A job applicant is NOT an employee: nothing here writes to the
+-- `employees` table or any of its children. HR moving a selected candidate
+-- into onboarding is a separate, later action (out of scope for these
+-- tables) — see the recruitment write-up for how that handoff is intended
+-- to work.
+-- ============================================================================
+
+-- ============================================================================
+-- admin_users
+-- HR/Admin accounts. Passwords are scrypt-hashed (lib/security/password.ts),
+-- never stored or logged in plaintext. Unlike `employees`, there is no
+-- auto-create-on-first-visit here — rows are provisioned via `prisma/seed.ts`
+-- from ADMIN_SEED_EMAIL/ADMIN_SEED_PASSWORD env vars (see .env.example).
+-- ============================================================================
+CREATE TABLE admin_users (
+    id            CHAR(36)     NOT NULL DEFAULT (UUID()),
+    email         VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name     VARCHAR(150) NOT NULL,
+    created_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_admin_users_email (email)
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- ============================================================================
+-- admin_sessions
+-- One row per active login. A dedicated table (rather than a token column
+-- on admin_users, unlike employees.session_token) because a real login must
+-- be revocable/expirable without rotating the account's password.
+-- ============================================================================
+CREATE TABLE admin_sessions (
+    id            CHAR(36)    NOT NULL DEFAULT (UUID()),
+    admin_user_id CHAR(36)    NOT NULL,
+    token         CHAR(36)    NOT NULL DEFAULT (UUID()),
+    expires_at    DATETIME(3) NOT NULL,
+    created_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_admin_sessions_token (token),
+    CONSTRAINT fk_admin_sessions_admin_user
+        FOREIGN KEY (admin_user_id) REFERENCES admin_users (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_admin_sessions_admin_user ON admin_sessions (admin_user_id);
+
+-- ============================================================================
+-- jobs
+-- One row per job opening. required_skills/preferred_skills are JSON string
+-- arrays (not flat text) so both the admin form and the public job page can
+-- render them as a tag/chip list rather than forcing a rich-text editor this
+-- codebase has no other dependency for. overview/responsibilities/
+-- requirements/benefits are newline-delimited plain text, rendered as bullet
+-- lists client-side — same reasoning, simpler structure than a full editor.
+-- No slug column: the app routes jobs by id (see routes in the write-up),
+-- so a slug would be state nothing reads — same principle applied to the
+-- onboarding tables above.
+-- ============================================================================
+CREATE TABLE jobs (
+    id                    CHAR(36)      NOT NULL DEFAULT (UUID()),
+    title                 VARCHAR(200)  NOT NULL,
+    department            VARCHAR(150)  NULL,
+    location              VARCHAR(150)  NULL,
+    employment_type       ENUM('full_time', 'part_time', 'contract', 'internship') NOT NULL,
+    work_mode             ENUM('onsite', 'hybrid', 'remote') NOT NULL,
+    experience_min_years  SMALLINT UNSIGNED NULL,
+    experience_max_years  SMALLINT UNSIGNED NULL,
+    salary_min            INT UNSIGNED NULL,
+    salary_max            INT UNSIGNED NULL,
+    salary_public         BOOLEAN       NOT NULL DEFAULT FALSE,
+    overview              TEXT          NULL,
+    responsibilities      TEXT          NULL,
+    requirements          TEXT          NULL,
+    required_skills       JSON          NULL,
+    preferred_skills      JSON          NULL,
+    education             VARCHAR(255)  NULL,
+    benefits              TEXT          NULL,
+    deadline              DATE          NULL,
+    status                ENUM('draft', 'published', 'closed') NOT NULL DEFAULT 'draft',
+    created_by            CHAR(36)      NULL,
+    created_at            DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at            DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    published_at          DATETIME(3)   NULL,
+    closed_at             DATETIME(3)   NULL,
+
+    PRIMARY KEY (id),
+    CONSTRAINT fk_jobs_created_bynow
+        FOREIGN KEY (created_by) REFERENCES admin_users (id) ON DELETE SET NULL,
+    CONSTRAINT chk_jobs_experience_range CHECK (
+        experience_min_years IS NULL OR experience_max_years IS NULL OR experience_min_years <= experience_max_years
+    ),
+    CONSTRAINT chk_jobs_salary_range CHECK (
+        salary_min IS NULL OR salary_max IS NULL OR salary_min <= salary_max
+    )
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_jobs_status ON jobs (status);
+CREATE INDEX idx_jobs_deadline ON jobs (deadline);
+
+-- ============================================================================
+-- candidates
+-- One row per person, found-or-created by email at application time so the
+-- same person can apply to multiple jobs (see job_applications below) —
+-- candidates are never linked to a job directly.
+-- ============================================================================
+CREATE TABLE candidates (
+    id               CHAR(36)     NOT NULL DEFAULT (UUID()),
+    first_name       VARCHAR(100) NOT NULL,
+    last_name        VARCHAR(100) NOT NULL,
+    email            VARCHAR(255) NOT NULL,
+    phone            VARCHAR(20)  NULL,
+    location         VARCHAR(150) NULL,
+    experience_years SMALLINT UNSIGNED NULL,
+    education        VARCHAR(255) NULL,
+    linkedin_url     VARCHAR(500) NULL,
+    portfolio_url    VARCHAR(500) NULL,
+    created_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at       DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_candidates_email (email),
+    CONSTRAINT chk_candidates_email CHECK (
+        email REGEXP '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$'
+    ),
+    CONSTRAINT chk_candidates_phone CHECK (
+        phone IS NULL OR phone REGEXP '^\\+?[0-9 -]{10,15}$'
+    )
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+-- ============================================================================
+-- job_applications
+-- One row per (job, candidate) pair — the UNIQUE key is what prevents a
+-- candidate from double-applying to the same job. This row only ever holds
+-- the CURRENT status; application_status_history below tracks transitions.
+-- ============================================================================
+CREATE TABLE job_applications (
+    id            CHAR(36)     NOT NULL DEFAULT (UUID()),
+    job_id        CHAR(36)     NOT NULL,
+    candidate_id  CHAR(36)     NOT NULL,
+    status        ENUM('applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected')
+                  NOT NULL DEFAULT 'applied',
+    cover_letter  TEXT         NULL,
+    applied_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_job_applications_job_candidate (job_id, candidate_id),
+    CONSTRAINT fk_job_applications_job
+        FOREIGN KEY (job_id) REFERENCES jobs (id) ON DELETE CASCADE,
+    CONSTRAINT fk_job_applications_candidate
+        FOREIGN KEY (candidate_id) REFERENCES candidates (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_job_applications_job ON job_applications (job_id);
+CREATE INDEX idx_job_applications_candidate ON job_applications (candidate_id);
+CREATE INDEX idx_job_applications_status ON job_applications (status);
+
+-- ============================================================================
+-- application_documents
+-- Resume/other uploads, scoped to the application (not the candidate) — a
+-- candidate re-applying later to a different job can attach an updated
+-- resume without touching the first application's record. File bytes live
+-- on local disk under a private `storage/` directory (see
+-- lib/server/fileStorage.ts); storage_path is a relative path, never a
+-- public URL — the only read path is the authenticated admin download route.
+-- ============================================================================
+CREATE TABLE application_documents (
+    id              CHAR(36)      NOT NULL DEFAULT (UUID()),
+    application_id  CHAR(36)      NOT NULL,
+    document_type   ENUM('resume', 'other') NOT NULL,
+    file_name       VARCHAR(255)  NOT NULL,
+    file_size       INT UNSIGNED  NOT NULL COMMENT 'bytes',
+    mime_type       VARCHAR(127)  NOT NULL,
+    storage_path    VARCHAR(1024) NOT NULL,
+    uploaded_at     DATETIME(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    CONSTRAINT fk_application_documents_application
+        FOREIGN KEY (application_id) REFERENCES job_applications (id) ON DELETE CASCADE
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_application_documents_application ON application_documents (application_id);
+
+-- ============================================================================
+-- application_status_history
+-- Append-only log of every status transition, so HR can see how an
+-- application progressed. old_status is NULL only for the very first row
+-- (the "applied" state recorded at submission time, which has no prior
+-- status and no admin actor).
+-- ============================================================================
+CREATE TABLE application_status_history (
+    id                   CHAR(36)    NOT NULL DEFAULT (UUID()),
+    application_id       CHAR(36)    NOT NULL,
+    old_status           ENUM('applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected') NULL,
+    new_status           ENUM('applied', 'under_review', 'shortlisted', 'interview', 'selected', 'rejected') NOT NULL,
+    changed_by_admin_id  CHAR(36)    NULL,
+    changed_at           DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    PRIMARY KEY (id),
+    CONSTRAINT fk_application_status_history_application
+        FOREIGN KEY (application_id) REFERENCES job_applications (id) ON DELETE CASCADE,
+    CONSTRAINT fk_application_status_history_admin
+        FOREIGN KEY (changed_by_admin_id) REFERENCES admin_users (id) ON DELETE SET NULL
+) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
+
+CREATE INDEX idx_application_status_history_application ON application_status_history (application_id);

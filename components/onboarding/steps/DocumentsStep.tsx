@@ -1,26 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useOnboardingStore } from "@/lib/store/onboardingStore";
-import { useRequiredDocumentsRemaining } from "@/lib/store/selectors";
+import { useDocumentsStepLogic } from "@/hooks/steps/useDocumentsStepLogic";
 import { DOCUMENT_REQUIREMENTS } from "@/lib/onboarding/documents.config";
 import { DocumentUploadRow } from "@/components/onboarding/DocumentUploadRow";
 import { StepShell } from "@/components/onboarding/StepShell";
 
 export function DocumentsStep() {
-  const router = useRouter();
-  const documents = useOnboardingStore((s) => s.documents);
-  const uploadProgress = useOnboardingStore((s) => s.uploadProgress);
-  const uploadDocument = useOnboardingStore((s) => s.uploadDocument);
-  const removeDocument = useOnboardingStore((s) => s.removeDocument);
-  const remaining = useRequiredDocumentsRemaining();
+  const { documents, uploadProgress, uploadDocument, removeDocument, remaining, onContinue } =
+    useDocumentsStepLogic();
 
   return (
     <StepShell
       stepId="documents"
       title="Documents"
       description="You can replace any file up until you submit."
-      onContinue={() => router.push("/onboarding/review")}
+      onContinue={onContinue}
       continueDisabled={remaining > 0}
       continueLabel={remaining > 0 ? `${remaining} required item${remaining > 1 ? "s" : ""} left` : "Continue"}
     >

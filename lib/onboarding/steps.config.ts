@@ -7,6 +7,20 @@ import { EmergencyContactStep } from "@/components/onboarding/steps/EmergencyCon
 import { HealthInsuranceStep } from "@/components/onboarding/steps/HealthInsuranceStep";
 import { DocumentsStep } from "@/components/onboarding/steps/DocumentsStep";
 import { ReviewStep } from "@/components/onboarding/steps/ReviewStep";
+import { WelcomeStepDark } from "@/components/design/dark/steps/WelcomeStepDark";
+import { PersonalInfoStepDark } from "@/components/design/dark/steps/PersonalInfoStepDark";
+import { ReferencesStepDark } from "@/components/design/dark/steps/ReferencesStepDark";
+import { EmergencyContactStepDark } from "@/components/design/dark/steps/EmergencyContactStepDark";
+import { HealthInsuranceStepDark } from "@/components/design/dark/steps/HealthInsuranceStepDark";
+import { DocumentsStepDark } from "@/components/design/dark/steps/DocumentsStepDark";
+import { ReviewStepDark } from "@/components/design/dark/steps/ReviewStepDark";
+import { WelcomeStepOrganic } from "@/components/design/organic/steps/WelcomeStepOrganic";
+import { PersonalInfoStepOrganic } from "@/components/design/organic/steps/PersonalInfoStepOrganic";
+import { ReferencesStepOrganic } from "@/components/design/organic/steps/ReferencesStepOrganic";
+import { EmergencyContactStepOrganic } from "@/components/design/organic/steps/EmergencyContactStepOrganic";
+import { HealthInsuranceStepOrganic } from "@/components/design/organic/steps/HealthInsuranceStepOrganic";
+import { DocumentsStepOrganic } from "@/components/design/organic/steps/DocumentsStepOrganic";
+import { ReviewStepOrganic } from "@/components/design/organic/steps/ReviewStepOrganic";
 
 export interface StepConfig {
   id: StepId;
@@ -15,6 +29,8 @@ export interface StepConfig {
   shortLabel: string;
   description: string;
   Component: ComponentType;
+  DarkComponent: ComponentType;
+  OrganicComponent: ComponentType;
 }
 
 export const stepRegistry: StepConfig[] = [
@@ -25,6 +41,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Welcome",
     description: "A quick introduction before we begin.",
     Component: WelcomeStep,
+    DarkComponent: WelcomeStepDark,
+    OrganicComponent: WelcomeStepOrganic,
   },
   {
     id: "personalInfo",
@@ -33,6 +51,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Personal Info",
     description: "Basic details, contact information, and government IDs.",
     Component: PersonalInfoStep,
+    DarkComponent: PersonalInfoStepDark,
+    OrganicComponent: PersonalInfoStepOrganic,
   },
   {
     id: "references",
@@ -41,6 +61,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "References",
     description: "Two professional references we can reach out to.",
     Component: ReferencesStep,
+    DarkComponent: ReferencesStepDark,
+    OrganicComponent: ReferencesStepOrganic,
   },
   {
     id: "emergencyContact",
@@ -49,6 +71,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Emergency Contact",
     description: "Who we should contact in case of an emergency.",
     Component: EmergencyContactStep,
+    DarkComponent: EmergencyContactStepDark,
+    OrganicComponent: EmergencyContactStepOrganic,
   },
   {
     id: "healthInsurance",
@@ -57,6 +81,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Health Insurance",
     description: "Coverage type, dependents, and nominee details.",
     Component: HealthInsuranceStep,
+    DarkComponent: HealthInsuranceStepDark,
+    OrganicComponent: HealthInsuranceStepOrganic,
   },
   {
     id: "documents",
@@ -65,6 +91,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Documents",
     description: "Upload the documents required to complete your file.",
     Component: DocumentsStep,
+    DarkComponent: DocumentsStepDark,
+    OrganicComponent: DocumentsStepOrganic,
   },
   {
     id: "review",
@@ -73,6 +101,8 @@ export const stepRegistry: StepConfig[] = [
     shortLabel: "Review",
     description: "Confirm everything looks right before you submit.",
     Component: ReviewStep,
+    DarkComponent: ReviewStepDark,
+    OrganicComponent: ReviewStepOrganic,
   },
 ];
 

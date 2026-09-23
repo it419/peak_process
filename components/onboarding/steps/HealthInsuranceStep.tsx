@@ -1,15 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useFieldArray, type Path } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
-import { useOnboardingForm } from "@/hooks/useOnboardingForm";
-import {
-  coverageTypeOptions,
-  healthInsuranceDefaults,
-  healthInsuranceSchema,
-  type HealthInsuranceData,
-} from "@/lib/schemas/healthInsurance.schema";
+import { useHealthInsuranceStepLogic } from "@/hooks/steps/useHealthInsuranceStepLogic";
+import { coverageTypeOptions } from "@/lib/schemas/healthInsurance.schema";
 import { TextField } from "@/components/ui/TextField";
 import { SelectField } from "@/components/ui/SelectField";
 import { Button } from "@/components/ui/Button";
@@ -17,29 +10,8 @@ import { StepShell } from "@/components/onboarding/StepShell";
 import { FormSection } from "@/components/onboarding/FormSection";
 
 export function HealthInsuranceStep() {
-  const router = useRouter();
-  const { form, saveNow } = useOnboardingForm({
-    step: "healthInsurance",
-    schema: healthInsuranceSchema,
-    defaultValues: healthInsuranceDefaults,
-  });
-  const {
-    register,
-    control,
-    watch,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = form;
-  const { fields, append, remove } = useFieldArray({ control, name: "dependents" });
-
-  const coverageType = watch("coverageType");
-
-  const onContinue = handleSubmit(async (data) => {
-    await saveNow(data);
-    router.push("/onboarding/documents");
-  });
-
-  const path = (p: string) => p as Path<HealthInsuranceData>;
+  const { register, errors, isSubmitting, onContinue, fields, append, remove, coverageType, path } =
+    useHealthInsuranceStepLogic();
 
   return (
     <StepShell

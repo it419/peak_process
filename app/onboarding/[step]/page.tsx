@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getStepBySlug } from "@/lib/onboarding/steps.config";
+import { StepRenderer } from "@/components/onboarding/StepRenderer";
 
 export async function generateMetadata(props: PageProps<"/onboarding/[step]">): Promise<Metadata> {
   const { step: slug } = await props.params;
@@ -13,6 +14,5 @@ export default async function OnboardingStepPage(props: PageProps<"/onboarding/[
   const step = getStepBySlug(slug);
   if (!step) notFound();
 
-  const StepComponent = step.Component;
-  return <StepComponent />;
+  return <StepRenderer step={step} />;
 }

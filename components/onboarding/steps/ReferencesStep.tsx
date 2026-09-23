@@ -1,29 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useOnboardingForm } from "@/hooks/useOnboardingForm";
-import { referencesDefaults, referencesSchema } from "@/lib/schemas/references.schema";
+import { useReferencesStepLogic } from "@/hooks/steps/useReferencesStepLogic";
 import { TextField } from "@/components/ui/TextField";
 import { StepShell } from "@/components/onboarding/StepShell";
 import { FormSection } from "@/components/onboarding/FormSection";
 
 export function ReferencesStep() {
-  const router = useRouter();
-  const { form, saveNow } = useOnboardingForm({
-    step: "references",
-    schema: referencesSchema,
-    defaultValues: referencesDefaults,
-  });
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = form;
-
-  const onContinue = handleSubmit(async (data) => {
-    await saveNow(data);
-    router.push("/onboarding/emergency-contact");
-  });
+  const { register, errors, isSubmitting, onContinue } = useReferencesStepLogic();
 
   return (
     <StepShell

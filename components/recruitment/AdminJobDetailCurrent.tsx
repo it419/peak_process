@@ -1,0 +1,85 @@
+"use client";
+
+import Link from "next/link";
+import { cn } from "@/lib/utils/cn";
+import { jobStatusLabel } from "@/lib/recruitment/constants";
+import { useJobStatusAction } from "@/hooks/recruitment/useJobStatusAction";
+import { buttonVariants } from "@/components/ui/buttonVariants";
+import { AdminJobFormCurrent } from "@/components/recruitment/AdminJobFormCurrent";
+import type { JobDetail } from "@/types/recruitment";
+
+const STATUS_TEXT: Record<string, string> = {
+  draft: "text-paper-ink-400",
+  published: "text-success",
+  closed: "text-paper-ink-600",
+};
+
+export function AdminJobDetailCurrent({ job }: { job: JobDetail }) {
+  const { changeStatus, pendingId, error } = useJobStatusAction();
+  const busy = pendingId === job.id;
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-paper-200 pb-6">
+        <div>
+          <p className={cn("text-sm font-semibold tracking-wide uppercase", STATUS_TEXT[job.status])}>
+            {jobStatusLabel(job.status)}
+          </p>
+          <p className="mt-1 text-sm text-paper-ink-600">
+            {job.applicationCount} application{job.applicationCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href={`/admin/jobs/${job.id}/applications`} className="text-sm font-medium text-ember-700 hover:underline">
+            View Applications
+          </Link>
+          {job.status === "draft" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => changeStatus(job.id, "published")}
+              className={buttonVariants({ variant: "primary", size: "sm" })}
+            >
+              Publish
+            </button>
+          )}
+          {job.status === "published" && (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => changeStatus(job.id, "draft")}
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
+              >
+                Unpublish
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => changeStatus(job.id, "closed")}
+                className={buttonVariants({ variant: "secondary", size: "sm" })}
+              >
+                Close Job
+              </button>
+            </>
+          )}
+          {job.status === "closed" && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => changeStatus(job.id, "published")}
+              className={buttonVariants({ variant: "secondary", size: "sm" })}
+            >
+              Reopen
+            </button>
+          )}
+        </div>
+      </div>
+      {error && <p className="mt-4 text-sm text-error">{error}</p>}
+
+      <div className="mt-8">
+        <AdminJobFormCurrent key={job.updatedAt} mode="edit" jobId={job.id} initialJob={job} />
+      </div>
+    </div>
+  );
+}

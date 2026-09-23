@@ -202,3 +202,195 @@ model EmployeeDocument {
   @@index([employeeId], map: "idx_employee_documents_employee")
   @@map("employee_documents")
 }
+
+// ============================================================================
+// Recruitment (jobs + applications) — additive, independent of the models
+// above. A job applicant is NOT an Employee: nothing here relates to
+// Employee or its children. See db/schema.sql's recruitment section header
+// for the full reasoning.
+// ============================================================================
+
+enum EmploymentType {
+  full_time
+  part_time
+  contract
+  internship
+}
+
+enum WorkMode {
+  onsite
+  hybrid
+  remote
+}
+
+enum JobStatus {
+  draft
+  published
+  closed
+}
+
+enum ApplicationStatus {
+  applied
+  under_review
+  shortlisted
+  interview
+  selected
+  rejected
+}
+
+enum ApplicationDocumentType {
+  resume
+  other
+}
+
+/// HR/Admin account. Passwords are scrypt-hashed (lib/security/password.ts) —
+/// never stored or logged in plaintext. Provisioned via prisma/seed.ts from
+/// ADMIN_SEED_EMAIL/ADMIN_SEED_PASSWORD; there is no signup page.
+model AdminUser {
+  id           String   @id @default(uuid()) @db.Char(36)
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  fullName     String   @map("full_name") @db.VarChar(150)
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  sessions      AdminSession[]
+  jobsCreated   Job[]
+  statusChanges ApplicationStatusHistory[]
+
+  @@map("admin_users")
+}
+
+/// One row per active login — a dedicated table (not just a token column on
+/// AdminUser, unlike Employee.sessionToken) because a real login must be
+/// revocable/expirable without rotating the account's password.
+model AdminSession {
+  id          String   @id @default(uuid()) @db.Char(36)
+  adminUserId String   @map("admin_user_id") @db.Char(36)
+  token       String   @unique @default(uuid()) @db.Char(36)
+  expiresAt   DateTime @map("expires_at") @db.DateTime(3)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([adminUserId], map: "idx_admin_sessions_admin_user")
+  @@map("admin_sessions")
+}
+
+/// One row per job opening. requiredSkills/preferredSkills are JSON string
+/// arrays (tag/chip UI), not flat text. No slug: the app routes by id.
+model Job {
+  id                 String         @id @default(uuid()) @db.Char(36)
+  title              String         @db.VarChar(200)
+  department         String?        @db.VarChar(150)
+  location           String?        @db.VarChar(150)
+  employmentType     EmploymentType @map("employment_type")
+  workMode           WorkMode       @map("work_mode")
+  experienceMinYears Int?           @map("experience_min_years") @db.UnsignedSmallInt
+  experienceMaxYears Int?           @map("experience_max_years") @db.UnsignedSmallInt
+  salaryMin          Int?           @map("salary_min") @db.UnsignedInt
+  salaryMax          Int?           @map("salary_max") @db.UnsignedInt
+  salaryPublic       Boolean        @default(false) @map("salary_public")
+  overview           String?        @db.Text
+  responsibilities   String?        @db.Text
+  requirements       String?        @db.Text
+  requiredSkills     Json?          @map("required_skills")
+  preferredSkills    Json?          @map("preferred_skills")
+  education          String?        @db.VarChar(255)
+  benefits           String?        @db.Text
+  deadline           DateTime?      @db.Date
+  status             JobStatus      @default(draft)
+  createdBy          String?        @map("created_by") @db.Char(36)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  publishedAt        DateTime?      @map("published_at") @db.DateTime(3)
+  closedAt           DateTime?      @map("closed_at") @db.DateTime(3)
+
+  creator      AdminUser?       @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  applications JobApplication[]
+
+  @@index([status], map: "idx_jobs_status")
+  @@index([deadline], map: "idx_jobs_deadline")
+  @@map("jobs")
+}
+
+/// One row per person; found-or-created by email so one candidate can apply
+/// to multiple jobs (see JobApplication) — never linked to a job directly.
+model Candidate {
+  id              String   @id @default(uuid()) @db.Char(36)
+  firstName       String   @map("first_name") @db.VarChar(100)
+  lastName        String   @map("last_name") @db.VarChar(100)
+  email           String   @unique @db.VarChar(255)
+  phone           String?  @db.VarChar(20)
+  location        String?  @db.VarChar(150)
+  experienceYears Int?     @map("experience_years") @db.UnsignedSmallInt
+  education       String?  @db.VarChar(255)
+  linkedinUrl     String?  @map("linkedin_url") @db.VarChar(500)
+  portfolioUrl    String?  @map("portfolio_url") @db.VarChar(500)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  applications JobApplication[]
+
+  @@map("candidates")
+}
+
+/// One row per (job, candidate) — the unique key blocks double-applying to
+/// the same job. Only ever holds the CURRENT status; see
+/// ApplicationStatusHistory for the transition log.
+model JobApplication {
+  id          String            @id @default(uuid()) @db.Char(36)
+  jobId       String            @map("job_id") @db.Char(36)
+  candidateId String            @map("candidate_id") @db.Char(36)
+  status      ApplicationStatus @default(applied)
+  coverLetter String?           @map("cover_letter") @db.Text
+  appliedAt   DateTime          @default(now()) @map("applied_at") @db.DateTime(3)
+  updatedAt   DateTime          @updatedAt @map("updated_at") @db.DateTime(3)
+
+  job           Job                        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate     Candidate                  @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  documents     ApplicationDocument[]
+  statusHistory ApplicationStatusHistory[]
+
+  @@unique([jobId, candidateId], map: "uq_job_applications_job_candidate")
+  @@index([jobId], map: "idx_job_applications_job")
+  @@index([candidateId], map: "idx_job_applications_candidate")
+  @@index([status], map: "idx_job_applications_status")
+  @@map("job_applications")
+}
+
+/// Resume/other uploads, scoped to the application (not the candidate) — see
+/// db/schema.sql for why. File bytes live on local disk
+/// (lib/server/fileStorage.ts); storagePath is never a public URL.
+model ApplicationDocument {
+  id            String                  @id @default(uuid()) @db.Char(36)
+  applicationId String                  @map("application_id") @db.Char(36)
+  documentType  ApplicationDocumentType @map("document_type")
+  fileName      String                  @map("file_name") @db.VarChar(255)
+  fileSize      Int                     @map("file_size") @db.UnsignedInt
+  mimeType      String                  @map("mime_type") @db.VarChar(127)
+  storagePath   String                  @map("storage_path") @db.VarChar(1024)
+  uploadedAt    DateTime                @default(now()) @map("uploaded_at") @db.DateTime(3)
+
+  application JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId], map: "idx_application_documents_application")
+  @@map("application_documents")
+}
+
+/// Append-only log of every status transition. oldStatus is NULL only for
+/// the very first row (the "applied" state recorded at submission).
+model ApplicationStatusHistory {
+  id               String             @id @default(uuid()) @db.Char(36)
+  applicationId    String             @map("application_id") @db.Char(36)
+  oldStatus        ApplicationStatus? @map("old_status")
+  newStatus        ApplicationStatus  @map("new_status")
+  changedByAdminId String?            @map("changed_by_admin_id") @db.Char(36)
+  changedAt        DateTime           @default(now()) @map("changed_at") @db.DateTime(3)
+
+  application    JobApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedByAdmin AdminUser?     @relation(fields: [changedByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([applicationId], map: "idx_application_status_history_application")
+  @@map("application_status_history")
+}

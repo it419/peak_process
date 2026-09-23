@@ -45,6 +45,52 @@
 
   --breakpoint-xl: 80rem;
   --breakpoint-tablet: 56.25rem;
+
+  /* ================================================================
+     Design 2 — Dark (Premium Enterprise). Namespaced "dark-" so it
+     never collides with the existing ink- / paper- tokens Design 1
+     relies on. Space Grotesk for display, IBM Plex Sans (shared) body.
+     ================================================================ */
+  --color-dark-bg: #0a0a0b;
+  --color-dark-surface: #141519;
+  --color-dark-surface-2: #1c1d22;
+  --color-dark-border: #292a30;
+  --color-dark-border-strong: #3a3b42;
+  --color-dark-text: #f2f0ec;
+  --color-dark-text-muted: #9b9a96;
+  --color-dark-text-faint: #68676f;
+  --color-dark-gold: #cba135;
+  --color-dark-gold-hover: #b8912e;
+  --color-dark-copper: #a6692b;
+  --color-dark-success: #5a9172;
+  --color-dark-success-tint: #16231c;
+  --color-dark-error: #c25b52;
+  --color-dark-error-tint: #271615;
+
+  --font-dark-display: var(--font-space-grotesk), system-ui, sans-serif;
+  --spacing-dark-rail: 19rem;
+
+  /* ================================================================
+     Design 3 — Organic (Curved Editorial). Fraunces for display,
+     Work Sans for body — distinct from both Design 1 and Design 2.
+     ================================================================ */
+  --color-organic-bg: #f7f2e9;
+  --color-organic-surface: #efe7d8;
+  --color-organic-surface-2: #e6dcc7;
+  --color-organic-border: #ded2b8;
+  --color-organic-ink: #2a2621;
+  --color-organic-ink-muted: #6b6255;
+  --color-organic-ink-faint: #9a917f;
+  --color-organic-gold: #b8934a;
+  --color-organic-terracotta: #bc6a4a;
+  --color-organic-terracotta-hover: #a85a3c;
+  --color-organic-success: #4a7a5c;
+  --color-organic-success-tint: #e6ebe1;
+  --color-organic-error: #a8483c;
+  --color-organic-error-tint: #f1e4df;
+
+  --font-organic-display: var(--font-fraunces), Georgia, serif;
+  --font-organic-sans: var(--font-work-sans), system-ui, sans-serif;
 }
 
 html {
